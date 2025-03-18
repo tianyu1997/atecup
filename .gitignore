@@ -1,0 +1,15 @@
+__pycache__/solution_example.cpython-310.pyc
+__pycache__/solution.cpython-310.pyc
+checkpoints/*
+dataset/*
+gym_rescue/*
+main.py
+run_main.bat
+dockerfile
+run_main.sh
+run.sh
+server.py
+solution_example.py
+user.log
+yolotest.py
+
