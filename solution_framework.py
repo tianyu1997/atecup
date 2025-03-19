@@ -23,8 +23,6 @@ class AlgSolution:
     def load_model(self):
         self.yolo_model = YOLO('yolov11n.pt')
 
-    
-
     def reset(self, reference_text=None, reference_image=None):
         self.reset_models()
         self.map.reset()
@@ -36,6 +34,7 @@ class AlgSolution:
         self.get_target_list(self.reference_text, self.reference_image)
         self.target_id = 0
         self.target_name = self.target_list[self.target_id]
+        self.target_history = []
         self.target = None
     
     def reset_models(self):
@@ -43,7 +42,7 @@ class AlgSolution:
         pass
 
     def get_target_list(self, reference_text)->list[str]:
-        ## 从reference_text中提取目标列表， 目标必须包含“person”，最后一个目标为"stretcher"
+        ## 从reference_text中提取目标列表， 目标第一个是"stretcher"，最后一个目标为“person”，
         pass
 
     def init_Map(self, ob):
@@ -65,13 +64,22 @@ class AlgSolution:
    
     def plan(self, ob, success):
         if self.target is None:
-            action = self.search(ob)
+            action, flag = self.search(ob)
+            if flag and self.target_id>=0: ## 确定找不到目标
+                self.target_id -= 1
+                self.target_name = self.target_list[self.target_id]
         elif self.reached(ob):
             if self.target_name == 'person':
-                action =  {'angular': 0, 'velocity': 0, 'viewport': 0, 'interaction': 3}
+                if self.carry_flag and success: ## 抬起人成功切换下个目标
+                    self.target_id += 1
+                    self.target_name = self.target_list[self.target_id]
+                    self.target = None
+                    action = self.search(ob)
+                else:
+                    action =  {'angular': 0, 'velocity': 0, 'viewport': 0, 'interaction': 3} ## 抬起人
             elif self.target_name == 'stretcher':
-                action =  {'angular': 0, 'velocity': 0, 'viewport': 0, 'interaction': 4}
-            else:
+                action =  {'angular': 0, 'velocity': 0, 'viewport': 0, 'interaction': 4} ## 放下人
+            else: ## 切换下个目标
                 self.target_id += 1
                 self.target_name = self.target_list[self.target_id]
                 self.target = None
@@ -82,6 +90,7 @@ class AlgSolution:
 
 
     def search(self, ob):
+        ## 搜索目标，返回action, flag, flag为True表示当前局部范围内找不到目标
         pass
                         
 
@@ -117,7 +126,10 @@ class AlgSolution:
             'interaction': 0}
     
     
-
+class Task():
+    def __init__(self, reference_text=None, reference_image=None):
+        self.reference_text = reference_text
+        self.reference_image = reference_image
 
 class Pose():    
     def __init__(self, position=[0, 0], orientation=0):
@@ -129,6 +141,7 @@ class Object():
         self.name = name
         self.pose = pose
         self.size = size
+        self.expolre = False
 
 
 class Map():
@@ -141,13 +154,13 @@ class Map():
         self.pose = Pose([0,0], 0)
         self.objects = dict()
     
-    def update(self, obs):
+    def update(self, obs, action):
         pass
 
-    def add_object(self, obj):
+    def add_object(self, obj: Object):
         name = obj.name
         if name not in self.objects:
-            self.objects[name] = dict({'item': [obj], 'map_id': len(self.objects), 'explored': False})
+            self.objects[name] = dict({'item': [obj], 'map_id': len(self.objects)})
         else:
             self.objects[name]['item'].append(obj)
         self.map_update(obj)
