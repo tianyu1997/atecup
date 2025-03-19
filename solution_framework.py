@@ -12,10 +12,8 @@ class AlgSolution:
 
     def __init__(self, reference_text=None, reference_image=None):
         self.load_model()
-        if os.path.exists('/home/admin/workspace/job/logs/'):
-            self.handle = open('/home/admin/workspace/job/logs/user.log', 'w')
-        else:
-            self.handle = open('user.log', 'w')
+        log_path = '/home/admin/workspace/job/logs/user.log' if os.path.exists('/home/admin/workspace/job/logs/') else 'user.log'
+        self.handle = open(log_path, 'w')
         
         self.map = Map()
         self.searcher = Searcher(self.map)
@@ -40,38 +38,34 @@ class AlgSolution:
         self.target_manager.reset(reference_text)
     
     def reset_models(self):
-        ## 重置有时序依赖的模型
+        # Reset models with temporal dependencies
         pass
 
-    def get_target_list(self, reference_text)->list[str]:
-        ## 从reference_text中提取目标列表， 目标第一个是"stretcher"，最后一个目标为“person”，
-        pass
 
     def init_Map(self, ob):
         ## init map 比如原地转一圈，记录周围的物体, 返回action,结束后设置init_map_flag = True
         pass
 
     def predicts(self, ob, success):
+        def predicts(self, ob, success):
         self.map.update(ob, self.last_action)
-        if not self.init_Map_falg:
-            action = self.init_Map(ob)
+        if not self.init_map_flag:
+            action = self.init_map(ob)
         else:
             action = self.plan(ob, success)
-        if action['interaction'] == 3:
-            self.carry_flag = True
-        else:
-            self.carry_flag = False
+        self.carry_flag = action['interaction'] == 3
         self.last_action = action
         return action
    
     def plan(self, ob, success):
         if self.target_manager.target_object is None:
             action, flag = self.search(ob)
-            if flag and self.target_id>=0: ## 确定找不到目标
+            if flag: ## 确定找不到目标
                 self.target_manager.last()
         elif self.reached(ob):
             if self.target_name == 'person':
                 if self.carry_flag and success: ## 抬起人成功切换下个目标
+                    self.target_manager.carry_person=True
                     self.target_manager.next()
                     action = self.search(ob)
                 else:
@@ -181,18 +175,24 @@ class TargetManager():
         self.target_name = self.target_list[self.target_id]
         self.target_history = []
         self.target_object = None
-        self.direction = 1
+        self.carry_person=False
 
     def generate_target_list(self)->List:
         pass 
 
     def next():
-        self.target_id += self.direction
-        self.target_name = self.target_list[self.target_id]
-        self.target_object = None
+        if not self.carry_person:
+            self.target_id += 1
+            self.target_name = self.target_list[self.target_id]
+            self.target_object = None
+        else:
+            self.target_id -= 1
+            self.target_object = self.target_history[self.target_id]
 
     def last()
-        pass
+        self.target_id += -1
+        self.target_name = self.target_list[self.target_id]
+        self.target_object = self.target_history[self.target_id]
 
 class Searcher():
     ## 利用大模型根据ref信息和Map信息，以及当前的target_name寻找target_object
