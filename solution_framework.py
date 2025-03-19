@@ -16,9 +16,14 @@ class AlgSolution:
             self.handle = open('/home/admin/workspace/job/logs/user.log', 'w')
         else:
             self.handle = open('user.log', 'w')
-        self.reset(reference_text, reference_image)
-        self.map = Map()
         
+        self.map = Map()
+        self.searcher = Searcher(self.map)
+        self.planner = Planner(self.map)  
+        self.target_manager = TargetManager(reference_text)
+        self.reset(reference_text, reference_image)
+
+
     def load_model(self):
         self.yolo_model = YOLO('yolov11n.pt')
 
@@ -30,11 +35,9 @@ class AlgSolution:
         self.reference_image = reference_image
         self.idx = 0
         self.carry_flag = False
-        self.get_target_list(self.reference_text, self.reference_image)
-        self.target_id = 0
-        self.target_name = self.target_list[self.target_id]
-        self.target_history = []
-        self.target = None
+        self.searcher.reset(self.map)
+        self.planner.reset(self.map)
+        self.target_manager.reset(reference_text)
     
     def reset_models(self):
         ## 重置有时序依赖的模型
@@ -62,73 +65,39 @@ class AlgSolution:
         return action
    
     def plan(self, ob, success):
-        if self.target is None:
+        if self.target_manager.target_object is None:
             action, flag = self.search(ob)
             if flag and self.target_id>=0: ## 确定找不到目标
-                self.target_id -= 1
-                self.target_name = self.target_list[self.target_id]
+                self.target_manager.last()
         elif self.reached(ob):
             if self.target_name == 'person':
                 if self.carry_flag and success: ## 抬起人成功切换下个目标
-                    self.target_id += 1
-                    self.target_name = self.target_list[self.target_id]
-                    self.target = None
+                    self.target_manager.next()
                     action = self.search(ob)
                 else:
-                    action =  {'angular': 0, 'velocity': 0, 'viewport': 0, 'interaction': 3} ## 抬起人
+                    action =  get_action(0,0,0,3) ## 抬起人
             elif self.target_name == 'stretcher':
-                action =  {'angular': 0, 'velocity': 0, 'viewport': 0, 'interaction': 4} ## 放下人
+                action =  get_action(0,0,0,4) ## 放下人
             else: ## 切换下个目标
-                self.target_id += 1
-                self.target_name = self.target_list[self.target_id]
-                self.target = None
+                self.target_manager.next()
                 action = self.search(ob)
         else:
             action = self.approach(ob)
         return action
 
+    def get_action(ang, vel, view, interaction)
+        return {'angular': ang, 'velocity': vel, 'viewport': view, 'interaction': interaction}
 
     def search(self, ob):
         ## 搜索目标，返回action, flag, flag为True表示当前局部范围内找不到目标
         pass
                         
-
     def approach(self, ob):
         pass
         
-        
     def reached(self, ob):
         pass
-        
 
-    def goto(self, target_position=[0, 0]):
-        dx = target_position[0] - self.pose['position'][0]
-        dy = target_position[1] - self.pose['position'][1]
-        angle = np.arctan2(dx, dy)  # y-axis as 0 degrees, clockwise as positive
-        angle_diff = angle - np.radians(self.pose['orientation'])
-        if angle_diff > np.pi:
-            angle_diff -= 2 * np.pi
-        elif angle_diff < -np.pi:
-            angle_diff += 2 * np.pi
-        angle_diff = np.degrees(angle_diff)
-        if abs(angle_diff) < 5:
-            return {'angular': 0, 'velocity': 100, 'viewport': 0, 'interaction': 0}
-        if angle_diff > 0:
-            return {'angular': min(30, angle_diff), # [-30, 30]
-            'velocity': 10, # [-100, 100],
-            'viewport': 0, # {0: stay, 1: look up, 2: look down},
-            'interaction': 0}
-        elif angle_diff < 0:
-            return {'angular': max(-30, angle_diff), # [-30, 30]
-            'velocity': 10, # [-100, 100],
-            'viewport': 0, # {0: stay, 1: look up, 2: look down},
-            'interaction': 0}
-    
-    
-class Task():
-    def __init__(self, reference_text=None, reference_image=None):
-        self.reference_text = reference_text
-        self.reference_image = reference_image
 
 class Pose():    
     def __init__(self, position=[0, 0], orientation=0):
@@ -153,6 +122,8 @@ class Map():
     #     occupied_map:二维np.array,记录某个pixel位置是否被占用，也就是人能正常通过，不会碰撞，0是不会碰撞，1是会碰撞，门可能需要特殊处理
     #     explored_map:二维np.array,记录某个pixel位置是否被探索观察过
     #     observe_pose:Pose类型，记录当前观察者的位置（最好能结合obs考虑卡模型情况）
+    #     in_house_flag: bool, 是否在房内
+    #     in_room_flag: bool, 是否在房内的房间内
     def __init__(self, size=[1000, 1000], scale=100):
         self.size = size
         self.scale = scale
@@ -170,12 +141,14 @@ class Map():
         self.occupied_map = np.zeros(size)
         self.explored_map = np.zeros(size)
         self.observe_pose = Pose([0,0], 0)
+        self.in_house_flag = False
+        self.in_room_flag = False
         
     def update(self, obs, action):
         pass
 
     def render(self):
-        ## 返回3张图片格式的map，最好能标注出观测者的pose
+        ## 返回3张图片格式的map，最好能标注出观测者的初始和当前pose
         pass
 
     # def add_object(self, obj: Object):
@@ -194,3 +167,81 @@ class Map():
         self.observe_pose['position'][1] += action['velocity'] * np.cos(np.radians(self.observe_pose['orientation']))
         self.observe_pose['orientation'] += action['angular']
         print(self.observe_pose)
+
+class TargetManager():
+    ## 管理target的类
+    #  根据ref信息生成target_list, 第一个目标是"stretcher"，最后一个目标为“person”
+    #  根据任务进程切换目标
+    def __init__(self, ref_text):
+        self.reset(ref_text)
+
+    def reset(self, ref_text):
+        self.get_target_list(ref_text)
+        self.target_id = 0
+        self.target_name = self.target_list[self.target_id]
+        self.target_history = []
+        self.target_object = None
+        self.direction = 1
+
+    def generate_target_list(self)->List:
+        pass 
+
+    def next():
+        self.target_id += self.direction
+        self.target_name = self.target_list[self.target_id]
+        self.target_object = None
+
+    def last()
+        pass
+
+class Searcher():
+    ## 利用大模型根据ref信息和Map信息，以及当前的target_name寻找target_object
+    ## 一种方案可选方案是输出value_map，根据value_map决定搜索优先级，且判断观测的到同名object是不是target_object
+    #  需要判断当前局部空间是否探索完全（如一个房间内找遍，没找到人）
+    
+     def __init__(self, map:Map, ref_txt, ref_img):
+         pass
+
+     def reset():
+         pass
+         
+     def load_model(self):
+         pass 
+         
+     def search(self, target_name):
+         pass
+         
+
+class Planner()
+     ## 规划无碰撞路线，走到目标位置
+     def __init__(self, map:Map):
+         pass
+         
+     def reset(self):
+         pass
+         
+     def goto(self, target_pose:Pose):
+         pass
+         
+     def move(self, target_pose:Pose):
+        dx = target_position[0] - self.pose['position'][0]
+        dy = target_position[1] - self.pose['position'][1]
+        angle = np.arctan2(dx, dy)  # y-axis as 0 degrees, clockwise as positive
+        angle_diff = angle - np.radians(self.pose['orientation'])
+        if angle_diff > np.pi:
+            angle_diff -= 2 * np.pi
+        elif angle_diff < -np.pi:
+            angle_diff += 2 * np.pi
+        angle_diff = np.degrees(angle_diff)
+        if abs(angle_diff) < 5:
+            return {'angular': 0, 'velocity': 100, 'viewport': 0, 'interaction': 0}
+        if angle_diff > 0:
+            return {'angular': min(30, angle_diff), # [-30, 30]
+            'velocity': 10, # [-100, 100],
+            'viewport': 0, # {0: stay, 1: look up, 2: look down},
+            'interaction': 0}
+        elif angle_diff < 0:
+            return {'angular': max(-30, angle_diff), # [-30, 30]
+            'velocity': 10, # [-100, 100],
+            'viewport': 0, # {0: stay, 1: look up, 2: look down},
+            'interaction': 0}
