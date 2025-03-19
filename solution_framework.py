@@ -7,7 +7,6 @@ import os
 from io import BytesIO
 import base64
 from ultralytics import YOLO
-# 加载预训练的YOLO模型，如果下载了特定版本的权重，请指定路径
 
 class AlgSolution:
 
@@ -145,34 +144,53 @@ class Object():
 
 
 class Map():
-    def __init__(self, size=[1000, 1000]):
-        self.reset(size)
-    
-    def reset(self, size=[1000, 1000]):
+    ## SLAM类 
+    # size: map的pixel尺寸
+    # scale: 每个pixel的大小与观察者位移的比例
+    # 每一步会根据上一步的action和当前的obs维护以下内容：
+    #     object_map: 二维np.array, 二维地图，地图上的数字表明对应的object类型
+    #     objects: 字典类型，记录看到过的物体，物体名字作为key，‘item’ 是Object类的list, mask指在object_map上对应的区域数字
+    #     occupied_map:二维np.array,记录某个pixel位置是否被占用，也就是人能正常通过，不会碰撞，0是不会碰撞，1是会碰撞，门可能需要特殊处理
+    #     explored_map:二维np.array,记录某个pixel位置是否被探索观察过
+    #     observe_pose:Pose类型，记录当前观察者的位置（最好能结合obs考虑卡模型情况）
+    def __init__(self, size=[1000, 1000], scale=100):
         self.size = size
-        self.map = np.zeros(size)
-        self.pose = Pose([0,0], 0)
-        self.objects = dict()
+        self.scale = scale
+        self.reset(size, scale)
     
+    def reset(self, size=None, scale=None):
+        if size is not None:
+            self.size = size
+        if scale is not None:
+            self.scale = scale
+            
+        self.objects = dict()
+        self.object_map = np.zeros(size)
+        
+        self.occupied_map = np.zeros(size)
+        self.explored_map = np.zeros(size)
+        self.observe_pose = Pose([0,0], 0)
+        
     def update(self, obs, action):
         pass
 
-    def add_object(self, obj: Object):
-        name = obj.name
-        if name not in self.objects:
-            self.objects[name] = dict({'item': [obj], 'map_id': len(self.objects)})
-        else:
-            self.objects[name]['item'].append(obj)
-        self.map_update(obj)
-
-    def map_update(self, obj):
-        pass
-
     def render(self):
+        ## 返回3张图片格式的map，最好能标注出观测者的pose
         pass
 
-    def update_pose(self, action):
-        self.pose['position'][0] += action['velocity'] * np.sin(np.radians(self.pose['orientation']))
-        self.pose['position'][1] += action['velocity'] * np.cos(np.radians(self.pose['orientation']))
-        self.pose['orientation'] += action['angular']
-        print(self.pose)
+    # def add_object(self, obj: Object):
+    #     name = obj.name
+    #     if name not in self.objects:
+    #         self.objects[name] = dict({'item': [obj], 'mask': len(self.objects)})
+    #     else:
+    #         self.objects[name]['item'].append(obj)
+    #     self.map_update(obj)
+
+    # def map_update(self, obj):
+    #     pass
+
+    def update_observe_pose(self, action):
+        self.observe_pose['position'][0] += action['velocity'] * np.sin(np.radians(self.observe_pose['orientation']))
+        self.observe_pose['position'][1] += action['velocity'] * np.cos(np.radians(self.observe_pose['orientation']))
+        self.observe_pose['orientation'] += action['angular']
+        print(self.observe_pose)
