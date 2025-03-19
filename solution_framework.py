@@ -61,7 +61,7 @@ class AlgSolution:
         if self.target_manager.target_object is None:
             action, flag = self.search(ob)
             if flag: ## 确定找不到目标
-                self.target_manager.last()
+                self.target_manager.pop()
         elif self.reached(ob):
             if self.target_name == 'person':
                 if self.carry_flag and success: ## 抬起人成功切换下个目标
@@ -190,7 +190,7 @@ class TargetManager():
             self.target_id -= 1
             self.target_object = self.target_history[self.target_id]
 
-    def last()
+    def pop()
         self.target_id += -1
         self.target_name = self.target_list[self.target_id]
         self.target_object = self.target_history.pop()
