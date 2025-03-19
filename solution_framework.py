@@ -182,6 +182,7 @@ class TargetManager():
 
     def next():
         if not self.carry_person:
+            self.target_history.append(self.target_object)
             self.target_id += 1
             self.target_name = self.target_list[self.target_id]
             self.target_object = None
@@ -192,7 +193,7 @@ class TargetManager():
     def last()
         self.target_id += -1
         self.target_name = self.target_list[self.target_id]
-        self.target_object = self.target_history[self.target_id]
+        self.target_object = self.target_history.pop()
 
 class Searcher():
     ## 利用大模型根据ref信息和Map信息，以及当前的target_name寻找target_object
