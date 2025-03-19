@@ -51,22 +51,22 @@ class AlgSolution:
         pass
 
     def predicts(self, ob, success):
-        self.map.update(ob)
+        self.map.update(ob, self.last_action)
         if not self.init_Map_falg:
             action = self.init_Map(ob)
         else:
             action = self.plan(ob, success)
-        self.update_pose(action)
         if action['interaction'] == 3:
             self.carry_flag = True
         else:
             self.carry_flag = False
+        self.last_action = action
         return action
    
-    def plan(self, success):
+    def plan(self, ob, success):
         if self.target is None:
-            action = self.search(self.target_name)
-        elif self.reached(self.target):
+            action = self.search(ob)
+        elif self.reached(ob):
             if self.target_name == 'person':
                 action =  {'angular': 0, 'velocity': 0, 'viewport': 0, 'interaction': 3}
             elif self.target_name == 'stretcher':
@@ -75,21 +75,21 @@ class AlgSolution:
                 self.target_id += 1
                 self.target_name = self.target_list[self.target_id]
                 self.target = None
-                action = self.search(self.target_name)
+                action = self.search(ob)
         else:
-            action = self.approach(self.target)
+            action = self.approach(ob)
         return action
 
 
-    def search(self, target: str):
+    def search(self, ob):
         pass
                         
 
-    def approach(self, target: object):
+    def approach(self, ob):
         pass
         
         
-    def reached(self, target: object):
+    def reached(self, ob):
         pass
         
 
@@ -116,15 +116,7 @@ class AlgSolution:
             'viewport': 0, # {0: stay, 1: look up, 2: look down},
             'interaction': 0}
     
-    def update_pose(self, action):
-        self.handle.write(json.dumps(action) + '\n')
-        self.handle.flush()
-        print(self.state)
-        print(action)
-        self.pose['position'][0] += action['velocity'] * np.sin(np.radians(self.pose['orientation']))
-        self.pose['position'][1] += action['velocity'] * np.cos(np.radians(self.pose['orientation']))
-        self.pose['orientation'] += action['angular']
-        print(self.pose)
+    
 
 
 class Pose():    
@@ -155,7 +147,7 @@ class Map():
     def add_object(self, obj):
         name = obj.name
         if name not in self.objects:
-            self.objects[name] = dict({'item': [obj], 'map_id': len(self.objects)})
+            self.objects[name] = dict({'item': [obj], 'map_id': len(self.objects), 'explored': False})
         else:
             self.objects[name]['item'].append(obj)
         self.map_update(obj)
@@ -165,3 +157,9 @@ class Map():
 
     def render(self):
         pass
+
+    def update_pose(self, action):
+        self.pose['position'][0] += action['velocity'] * np.sin(np.radians(self.pose['orientation']))
+        self.pose['position'][1] += action['velocity'] * np.cos(np.radians(self.pose['orientation']))
+        self.pose['orientation'] += action['angular']
+        print(self.pose)
