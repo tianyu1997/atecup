@@ -9,7 +9,6 @@ import base64
 from ultralytics import YOLO
 
 class AlgSolution:
-
     def __init__(self, reference_text=None, reference_image=None):
         self.load_model()
         log_path = '/home/admin/workspace/job/logs/user.log' if os.path.exists('/home/admin/workspace/job/logs/') else 'user.log'
@@ -20,11 +19,7 @@ class AlgSolution:
         self.planner = Planner(self.map)  
         self.target_manager = TargetManager(reference_text)
         self.reset(reference_text, reference_image)
-
-
-    def load_model(self):
-        self.yolo_model = YOLO('yolov11n.pt')
-
+        
     def reset(self, reference_text=None, reference_image=None):
         self.reset_models()
         self.map.reset()
@@ -36,6 +31,9 @@ class AlgSolution:
         self.searcher.reset(self.map)
         self.planner.reset(self.map)
         self.target_manager.reset(reference_text)
+        
+    def load_model(self):
+        self.yolo_model = YOLO('yolov11n.pt')
     
     def reset_models(self):
         # Reset models with temporal dependencies
