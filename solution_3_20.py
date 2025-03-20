@@ -21,7 +21,7 @@ class AlgSolution:
         self.handle.flush()
         self.foreward = {
             'angular': 0, # [-30, 30]
-            'velocity': 50, # [-100, 100],
+            'velocity': 80, # [-100, 100],
             'viewport': 0, # {0: stay, 1: look up, 2: look down},
             'interaction': 0, #
         }
@@ -75,6 +75,7 @@ class AlgSolution:
         self.handle.write('searching_person\n')
         self.handle.flush()
         self.carry_flag = False
+        self.search_counter = 0
 
     def predicts(self, ob, success):
         action = self.plan(ob, success)
@@ -87,6 +88,8 @@ class AlgSolution:
    
     def plan(self, ob, success):
         self.idx += 1
+        if self.idx == 500:
+            return self.drop
         self.handle.write('Step %d\n'%self.idx)
         self.handle.flush()
 
@@ -119,8 +122,13 @@ class AlgSolution:
                     self.handle.flush()
                     self.state = 'approaching_person'
                     print('approaching_person')
+                    self.search_counter = 0
                     return self.approach(box)
-            return self.search_person()
+            self.search_counter += 1
+            if self.search_counter < 20:
+                return self.search_person()
+            else: 
+                return self.random_search()
                 
         elif self.state == 'approaching_person':
             if self.carry_flag == True and success:
@@ -150,23 +158,33 @@ class AlgSolution:
                     self.handle.flush()
                     self.state = 'approaching_truck'
                     print('approaching_truck')
+                    self.search_counter = 0
                     return self.approach(box)
-            return self.search_truck()
+            self.search_counter += 1
+            if self.search_counter < 50:
+                return self.search_truck()
+            else:
+                return self.random_search()
         
         elif self.state == 'approaching_truck':
             truck_box = None
+            self.search_counter += 1
             for box in boxes:
                 cls = int(box.cls.item())
                 if self.yolo_model.names[cls] in self.bench_list and box.conf.item() > 0.1:
                     self.handle.write("approaching bench\n")
                     print('approaching bench')
                     self.state = 'approaching_bench'
+                    self.search_counter = 0
                     return self.approach(box)
                 if self.yolo_model.names[cls] in self.bench_list:
                     truck_box = box
             if truck_box is not None:
                 return self.approach(truck_box)
-            return self.foreward
+            if self.search_counter < 20:
+                return self.foreward
+            else:
+                return self.random_search()
             
         
         elif self.state == 'approaching_bench': 
@@ -182,7 +200,16 @@ class AlgSolution:
                     else:
                         return self.approach(box)
             return self.foreward
-        return self.turnleft
+        return self.random_search()
+    
+    def random_search(self):
+        random_action = {
+            'angular': np.random.uniform(0, 30),
+            'velocity': np.random.uniform(-10, 30),
+            'viewport': 0,
+            'interaction': 0
+        }
+        return random_action
                         
 
     def approach(self, box):
@@ -211,7 +238,7 @@ class AlgSolution:
         elif 'left' in self.reference_text[0]:
             return self.turnleft
         else:
-            return self.foreward
+            return self.random_search()
         
     def search_truck(self):
         if self.pose['position'][0]**2 + self.pose['position'][1]**2 < 10000:
