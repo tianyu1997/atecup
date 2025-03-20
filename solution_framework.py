@@ -45,7 +45,6 @@ class AlgSolution:
         pass
 
     def predicts(self, ob, success):
-        def predicts(self, ob, success):
         self.map.update(ob, self.last_action)
         if not self.init_map_flag:
             action = self.init_map(ob)
@@ -67,9 +66,9 @@ class AlgSolution:
                     self.target_manager.next()
                     action = self.search(ob)
                 else:
-                    action =  get_action(0,0,0,3) ## 抬起人
+                    action =  self.get_action(0,0,0,3) ## 抬起人
             elif self.target_name == 'stretcher':
-                action =  get_action(0,0,0,4) ## 放下人
+                action =  self.get_action(0,0,0,4) ## 放下人
             else: ## 切换下个目标
                 self.target_manager.next()
                 action = self.search(ob)
@@ -77,7 +76,7 @@ class AlgSolution:
             action = self.approach(ob)
         return action
 
-    def get_action(ang, vel, view, interaction)
+    def get_action(self, ang, vel, view, interaction):
         return {'angular': ang, 'velocity': vel, 'viewport': view, 'interaction': interaction}
 
     def search(self, ob):
@@ -175,10 +174,10 @@ class TargetManager():
         self.target_object = None
         self.carry_person=False
 
-    def generate_target_list(self)->List:
+    def generate_target_list(self)->list:
         pass 
 
-    def next():
+    def next(self):
         if not self.carry_person:
             self.target_history.append(self.target_object)
             self.target_id += 1
@@ -188,7 +187,7 @@ class TargetManager():
             self.target_id -= 1
             self.target_object = self.target_history[self.target_id]
 
-    def pop()
+    def pop(self):
         self.target_id += -1
         self.target_name = self.target_list[self.target_id]
         self.target_object = self.target_history.pop()
@@ -211,7 +210,7 @@ class Searcher():
          pass
          
 
-class Planner()
+class Planner():
      ## 规划无碰撞路线，走到目标位置
      def __init__(self, map:Map):
          pass
@@ -223,8 +222,8 @@ class Planner()
          pass
          
      def move(self, target_pose:Pose):
-        dx = target_position[0] - self.pose['position'][0]
-        dy = target_position[1] - self.pose['position'][1]
+        dx = target_pose.position[0] - self.pose['position'][0]
+        dy = target_pose.position[1] - self.pose['position'][1]
         angle = np.arctan2(dx, dy)  # y-axis as 0 degrees, clockwise as positive
         angle_diff = angle - np.radians(self.pose['orientation'])
         if angle_diff > np.pi:
