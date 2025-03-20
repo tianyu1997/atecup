@@ -21,7 +21,7 @@ class AlgSolution:
         self.handle.flush()
         self.foreward = {
             'angular': 0, # [-30, 30]
-            'velocity': 80, # [-100, 100],
+            'velocity': 100, # [-100, 100],
             'viewport': 0, # {0: stay, 1: look up, 2: look down},
             'interaction': 0, #
         }
@@ -33,25 +33,25 @@ class AlgSolution:
         }
         self.turnleft = {
             'angular': -20, # [-30, 30]
-            'velocity': 10, # [-100, 100],
+            'velocity': 0, # [-100, 100],
             'viewport': 0, # {0: stay, 1: look up, 2: look down},
             'interaction': 0, #
         }
         self.turnright = {
             'angular': 20, # [-30, 30]
-            'velocity': 10, # [-100, 100],
+            'velocity': 0, # [-100, 100],
             'viewport': 0, # {0: stay, 1: look up, 2: look down},
             'interaction': 0, #
         }
         self.carry = {
             'angular': 0, # [-30, 30]
-            'velocity': 0, # [-100, 100],
+            'velocity': 30, # [-100, 100],
             'viewport': 0, # {0: keep, 1: up, 2: down},
             'interaction': 3,
         }
         self.drop = {
             'angular': 0, # [-30, 30]
-            'velocity': 0, # [-100, 100],
+            'velocity': 30, # [-100, 100],
             'viewport': 0, # {0: keep, 1: up, 2: down},
             'interaction': 4, # {0: stand, 1: jump, 2: crouch, 3: carry, 4: drop, 5: open door}
         }
@@ -88,7 +88,7 @@ class AlgSolution:
    
     def plan(self, ob, success):
         self.idx += 1
-        if self.idx == 500:
+        if self.idx == 1000:
             return self.drop
         self.handle.write('Step %d\n'%self.idx)
         self.handle.flush()
@@ -125,7 +125,7 @@ class AlgSolution:
                     self.search_counter = 0
                     return self.approach(box)
             self.search_counter += 1
-            if self.search_counter < 20:
+            if self.search_counter < 19:
                 return self.search_person()
             else: 
                 return self.random_search()
@@ -142,7 +142,7 @@ class AlgSolution:
                     cls = int(box.cls.item())
                     con = box.conf.item()
                     if self.yolo_model.names[cls] == 'person' and con > 0.5:
-                        if self.approached(box, [420,230]):
+                        if self.approached(box, [450,250]):
                             self.handle.write("carry!!!!!!!!!!!!!!!!!!\n")
                             return self.carry
                         else:
@@ -177,11 +177,11 @@ class AlgSolution:
                     self.state = 'approaching_bench'
                     self.search_counter = 0
                     return self.approach(box)
-                if self.yolo_model.names[cls] in self.bench_list:
+                if self.yolo_model.names[cls] in self.trcuk_list:
                     truck_box = box
             if truck_box is not None:
                 return self.approach(truck_box)
-            if self.search_counter < 20:
+            if self.search_counter < 50:
                 return self.foreward
             else:
                 return self.random_search()
@@ -195,7 +195,7 @@ class AlgSolution:
                     print('approaching bench')
                     if self.approached(box, [400,270]):
                         self.handle.write("drop!!!!!!!!!!!!!!!!!!\n")
-                        print('drop!!!!!!!!!!!!!!!!!!')
+                        print(f'{self.idx}:drop!!!!!!!!!!!!!!!!!!')
                         return self.drop
                     else:
                         return self.approach(box)
@@ -203,9 +203,18 @@ class AlgSolution:
         return self.random_search()
     
     def random_search(self):
+        if 'right' in self.reference_text[0]:
+            low = -2
+            high = 15
+        elif 'left' in self.reference_text[0]:
+            low = -15
+            high = 2
+        else:
+            low = 0
+            high = 15
         random_action = {
-            'angular': np.random.uniform(0, 30),
-            'velocity': np.random.uniform(-10, 30),
+            'angular': np.random.uniform(low, high),
+            'velocity': np.random.uniform(-10, 80),
             'viewport': 0,
             'interaction': 0
         }
@@ -216,11 +225,11 @@ class AlgSolution:
         res_ = box.xywh
         x, y, w_, h_ = res_[0].tolist()
         
-        if x < 270:
-            action = {'angular': np.clip((x-320)/5,-30,30), 'velocity': 0, 'viewport': 0, 'interaction': 0}
+        if x < 280:
+            action = {'angular': np.clip((x-320)/4,-30,30), 'velocity': 10, 'viewport': 0, 'interaction': 0}
             return action
-        elif x > 370:
-            action = {'angular': np.clip((x-320)/5,-30,30), 'velocity': 0, 'viewport': 0, 'interaction': 0}
+        elif x > 360:
+            action = {'angular': np.clip((x-320)/4,-30,30), 'velocity': 10, 'viewport': 0, 'interaction': 0}
             return action
         else:
             return self.foreward
@@ -228,7 +237,7 @@ class AlgSolution:
     def approached(self, box, threshold=[400, 230]):
         res_ = box.xywh
         x0, y0, w_, h_ = res_[0].tolist()
-        if y0 > threshold[0] or w_>threshold[1]: 
+        if y0 > threshold[0]-h_/3 or w_>threshold[1]: 
             return True
         return False
         
@@ -242,7 +251,7 @@ class AlgSolution:
         
     def search_truck(self):
         if self.pose['position'][0]**2 + self.pose['position'][1]**2 < 10000:
-            return self.turnright
+            return self.random_search()
         else:
             action  = self.move([0,0])
             return action
